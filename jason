@@ -1,0 +1,115 @@
+{
+  "name": "Telegram OCR Local (Tesseract)",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message"]
+      },
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "credentials": {
+        "telegramApi": {
+          "id": "TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.telegram.org/bot{{$credentials.telegramApi.accessToken}}/getFile",
+        "method": "GET",
+        "queryParametersUi": {
+          "parameter": [
+            {
+              "name": "file_id",
+              "value": "={{$json.message.photo[$json.message.photo.length-1].file_id}}"
+            }
+          ]
+        }
+      },
+      "name": "Get Telegram File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [250, 0]
+    },
+    {
+      "parameters": {
+        "url": "https://api.telegram.org/file/bot{{$credentials.telegramApi.accessToken}}/{{$json.result.file_path}}",
+        "method": "GET",
+        "responseFormat": "file",
+        "binaryPropertyName": "image"
+      },
+      "name": "Download Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 0]
+    },
+    {
+      "parameters": {
+        "filePath": "/tmp/ocr-input.jpg",
+        "binaryPropertyName": "image"
+      },
+      "name": "Write Binary File",
+      "type": "n8n-nodes-base.writeBinaryFile",
+      "typeVersion": 1,
+      "position": [750, 0]
+    },
+    {
+      "parameters": {
+        "command": "tesseract /tmp/ocr-input.jpg /tmp/ocr-output"
+      },
+      "name": "Execute Tesseract",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1000, 0]
+    },
+    {
+      "parameters": {
+        "filePath": "/tmp/ocr-output.txt",
+        "binaryPropertyName": "text"
+      },
+      "name": "Read OCR Result",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [1250, 0]
+    },
+    {
+      "parameters": {
+        "chatId": "={{$node[\"Telegram Trigger\"].json.message.chat.id}}",
+        "text": "={{$binary.text.data.toString()}}"
+      },
+      "name": "Reply OCR",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [1500, 0],
+      "credentials": {
+        "telegramApi": {
+          "id": "TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [[{ "node": "Get Telegram File", "type": "main", "index": 0 }]]
+    },
+    "Get Telegram File": {
+      "main": [[{ "node": "Download Image", "type": "main", "index": 0 }]]
+    },
+    "Download Image": {
+      "main": [[{ "node": "Write Binary File", "type": "main", "index": 0 }]]
+    },
+    "Write Binary File": {
+      "main": [[{ "node": "Execute Tesseract", "type": "main", "index": 0 }]]
+    },
+    "Execute Tesseract": {
+      "main": [[{ "node": "Read OCR Result", "type": "main", "index": 0 }]]
+    },
+    "Read OCR Result": {
+      "main": [[{ "node": "Reply OCR", "type": "main", "index": 0 }]]
+    }
+  }
+}
